@@ -184,7 +184,7 @@ namespace Components
                 attr.A2 * Math.Pow(raw, 2) +
                 attr.A3 * Math.Pow(raw, 3) +
                 attr.B;
-            return (!double.IsNaN(result) || !double.IsInfinity(result));
+            return (!double.IsNaN(result) && !double.IsInfinity(result));
         }
     }
 
