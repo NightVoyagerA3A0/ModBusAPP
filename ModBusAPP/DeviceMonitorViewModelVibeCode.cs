@@ -1,4 +1,4 @@
-﻿using ApplicationLayer;
+using ApplicationLayer;
 using Device;
 using Interfaces;
 using System;
@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Threading;
 
 namespace ModBusAPP
 {
@@ -82,14 +83,19 @@ namespace ModBusAPP
     /// <remarks>
     /// 行为模式：表现层适配型。
     /// 该类不读串口、不解析寄存器，只负责接收调度器推送的状态并更新可绑定属性。
+    /// 当前版本额外承担一个很重要的学习型职责：把后台轮询线程切回 UI 线程，
+    /// 避免真实调度器接入后直接在后台线程更新 WPF 集合而导致异常。
     /// </remarks>
     public sealed class DeviceMonitorViewModelVibeCode : INotifyPropertyChanged
     {
+        private readonly Dispatcher _dispatcher;
         private readonly Dictionary<string, DevicePointItemVibeCode> _pointLookup;
         private string _deviceName = "未绑定设备";
         private string _portName = "未指定串口";
         private string _schedulerStateText = "Created";
         private string _deviceStateText = "Idle";
+        private string _dataSourceText = "尚未决定数据源";
+        private string _analysisHintText = "当前界面尚未接入真实调度器。";
         private string _summaryText = "尚未收到任何设备数据。";
         private string _warningsText = "无告警";
         private string _lastUpdatedText = "尚未更新";
@@ -136,6 +142,24 @@ namespace ModBusAPP
         }
 
         /// <summary>
+        /// 获取当前界面绑定的数据源说明文本。
+        /// </summary>
+        public string DataSourceText
+        {
+            get => _dataSourceText;
+            private set => SetField(ref _dataSourceText, value);
+        }
+
+        /// <summary>
+        /// 获取当前为学习和分析保留的提示文本。
+        /// </summary>
+        public string AnalysisHintText
+        {
+            get => _analysisHintText;
+            private set => SetField(ref _analysisHintText, value);
+        }
+
+        /// <summary>
         /// 获取界面摘要文本。
         /// </summary>
         public string SummaryText
@@ -173,9 +197,11 @@ namespace ModBusAPP
         /// <remarks>
         /// 行为模式：占位初始化型。
         /// 构造函数会准备好点位集合和默认提示文本，便于界面在尚未绑定调度器时也能正常显示。
+        /// 同时它会捕获当前 UI Dispatcher，后续真实轮询事件回到这里时就能安全更新 WPF 绑定集合。
         /// </remarks>
         public DeviceMonitorViewModelVibeCode()
         {
+            _dispatcher = Dispatcher.CurrentDispatcher;
             Points = new ObservableCollection<DevicePointItemVibeCode>();
             _pointLookup = new Dictionary<string, DevicePointItemVibeCode>(StringComparer.Ordinal);
         }
@@ -203,12 +229,39 @@ namespace ModBusAPP
                 throw new ArgumentNullException(nameof(scheduler));
             }
 
-            SchedulerStateText = scheduler.State.ToString();
-            ApplySnapshot(scheduler.CurrentSnapshot);
+            RunOnUiThread(() =>
+            {
+                SchedulerStateText = scheduler.State.ToString();
+                ApplySnapshotCore(scheduler.CurrentSnapshot);
+            });
 
             scheduler.StateChanged += HandleSchedulerStateChanged;
             scheduler.DeviceSnapshotChanged += HandleDeviceSnapshotChanged;
             scheduler.Faulted += HandleFaulted;
+        }
+
+        /// <summary>
+        /// 更新当前界面的数据源说明与分析提示。
+        /// </summary>
+        /// <param name="dataSourceText">
+        /// 输入参数模式：数据源说明文本。
+        /// 该参数用于提示当前是模拟链路还是真实调度器链路，不允许为 null。
+        /// </param>
+        /// <param name="analysisHintText">
+        /// 输入参数模式：分析提示文本。
+        /// 该参数用于帮助学习者定位下一步应该阅读的代码边界，不允许为 null。
+        /// </param>
+        /// <remarks>
+        /// 行为模式：界面上下文更新型。
+        /// 该方法只更新提示文本，不触发通信，也不直接修改设备模型。
+        /// </remarks>
+        public void UpdateLearningContext(string dataSourceText, string analysisHintText)
+        {
+            RunOnUiThread(() =>
+            {
+                DataSourceText = dataSourceText ?? string.Empty;
+                AnalysisHintText = analysisHintText ?? string.Empty;
+            });
         }
 
         /// <summary>
@@ -229,19 +282,12 @@ namespace ModBusAPP
                 throw new ArgumentNullException(nameof(snapshot));
             }
 
-            DeviceName = snapshot.DeviceName;
-            PortName = string.IsNullOrWhiteSpace(snapshot.PortName) ? "未指定串口" : snapshot.PortName;
-            DeviceStateText = snapshot.State.ToString();
-            LastUpdatedText = snapshot.LastUpdatedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "尚未更新";
-            WarningsText = snapshot.Warnings.Count == 0 ? "无告警" : string.Join(Environment.NewLine, snapshot.Warnings);
-            SummaryText = BuildSummaryText(snapshot);
-
-            SyncPoints(snapshot.CurrentValues);
+            RunOnUiThread(() => ApplySnapshotCore(snapshot));
         }
 
         private void HandleSchedulerStateChanged(PollSchedulerStateVibeCode state)
         {
-            SchedulerStateText = state.ToString();
+            RunOnUiThread(() => SchedulerStateText = state.ToString());
         }
 
         private void HandleDeviceSnapshotChanged(VirtualDeviceSnapshotVibeCode snapshot)
@@ -251,7 +297,19 @@ namespace ModBusAPP
 
         private void HandleFaulted(Exception exception)
         {
-            SummaryText = $"调度器检测到故障：{exception.Message}";
+            RunOnUiThread(() => SummaryText = $"调度器检测到故障：{exception.Message}");
+        }
+
+        private void ApplySnapshotCore(VirtualDeviceSnapshotVibeCode snapshot)
+        {
+            DeviceName = snapshot.DeviceName;
+            PortName = string.IsNullOrWhiteSpace(snapshot.PortName) ? "未指定串口" : snapshot.PortName;
+            DeviceStateText = snapshot.State.ToString();
+            LastUpdatedText = snapshot.LastUpdatedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "尚未更新";
+            WarningsText = snapshot.Warnings.Count == 0 ? "无告警" : string.Join(Environment.NewLine, snapshot.Warnings);
+            SummaryText = BuildSummaryText(snapshot);
+
+            SyncPoints(snapshot.CurrentValues);
         }
 
         private void SyncPoints(IReadOnlyDictionary<string, object?> values)
@@ -292,8 +350,16 @@ namespace ModBusAPP
             field = value;
             OnPropertyChanged(propertyName);
         }
+
+        private void RunOnUiThread(Action action)
+        {
+            if (_dispatcher.CheckAccess())
+            {
+                action();
+                return;
+            }
+
+            _dispatcher.Invoke(action);
+        }
     }
 }
-
-
-

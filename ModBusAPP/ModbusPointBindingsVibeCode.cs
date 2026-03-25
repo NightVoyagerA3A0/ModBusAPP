@@ -39,12 +39,12 @@ namespace Components
         /// 获取该点位在读取时需要占用的寄存器数量。
         /// 该数量来自拼接类型推断，供读取计划生成和快照解析使用。
         /// </summary>
-        public int RegisterCount => Attribute.JointTypes switch
+        public int RegisterCount => Attribute.RegisterValueType switch
         {
-            jointTypes.Int16 => 1,
-            jointTypes.BigEndian32 => 2,
-            jointTypes.LittleEndian32 => 2,
-            jointTypes.Custom => Math.Max(Attribute.Length, (short)1),
+            RegisterValueType.Int16 => 1,
+            RegisterValueType.BigEndian32 => 2,
+            RegisterValueType.LittleEndian32 => 2,
+            RegisterValueType.Custom => Math.Max(Attribute.Length, (short)1),
             _ => Math.Max(Attribute.Length, (short)1)
         };
 
@@ -107,12 +107,19 @@ namespace Components
         /// </returns>
         /// <remarks>
         /// 行为模式：委托型。
-        /// 该方法不自己定义 Custom 拼接规则，而是把解释权下放到设备模型的 <see cref="IDeviceModel.TryJoint(byte[], out double)"/>。
+        /// 该方法不自己定义 Custom 拼接规则，而是把解释权下放到设备模型的 <see cref="IDeviceModel.TryMapCustom(string, byte[], out double?)"/>。
         /// </remarks>
         public bool TryResolveCustomValue(ushort[] words, out double result)
         {
             var bytes = ModbusRawValueDecoder.ToBigEndianBytes(words);
-            return _device.TryJoint(bytes, out result);
+            if (!_device.TryMapCustom(Property.Name, bytes, out var resolved) || resolved is null)
+            {
+                result = default;
+                return false;
+            }
+
+            result = resolved.Value;
+            return true;
         }
     }
 
@@ -210,7 +217,7 @@ namespace Components
         /// 行为模式：解码型。
         /// 该方法只负责通用拼接，不处理偏移、缩放或业务公式。
         /// </remarks>
-        public static double Decode(ushort[] words, jointTypes jointType)
+        public static double Decode(ushort[] words, RegisterValueType jointType)
         {
             if (words is null || words.Length == 0)
             {
@@ -219,11 +226,11 @@ namespace Components
 
             return jointType switch
             {
-                jointTypes.Int16 => unchecked((short)words[0]),
-                jointTypes.BigEndian32 => DecodeBigEndian32(words),
-                jointTypes.LittleEndian32 => DecodeLittleEndian32(words),
-                jointTypes.Custom => throw new NotSupportedException("Custom 类型应当由设备模型自行拼接。"),
-                _ => throw new NotSupportedException($"不支持的 jointTypes: {jointType}")
+                RegisterValueType.Int16 => unchecked((short)words[0]),
+                RegisterValueType.BigEndian32 => DecodeBigEndian32(words),
+                RegisterValueType.LittleEndian32 => DecodeLittleEndian32(words),
+                RegisterValueType.Custom => throw new NotSupportedException("Custom 类型应当由设备模型自行拼接。"),
+                _ => throw new NotSupportedException($"不支持的 RegisterValueType: {jointType}")
             };
         }
 

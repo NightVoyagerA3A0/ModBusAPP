@@ -1,38 +1,230 @@
-﻿<Window x:Class="ModBusAPP.GUI"
+<Window x:Class="ModBusAPP.GUI"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="点位研究用例" Height="350" Width="500">
+        Title="Modbus 学习监控台"
+        Width="1080"
+        Height="680"
+        MinWidth="860"
+        MinHeight="560"
+        Background="#F3EFE7">
+    <DockPanel LastChildFill="True">
+        <Border DockPanel.Dock="Top"
+                Background="#16324F"
+                Padding="20,16"
+                BorderBrush="#D7C8AE"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-    <DockPanel>
-        <Menu DockPanel.Dock="Top" Background="#F5F5F5" Padding="5">
-            <MenuItem Header="文件(F)" />
-            <MenuItem Header="编辑(E)" />
-            <MenuItem Header="通信设置(C)" />
-            <MenuItem Header="帮助(H)" />
-        </Menu>
+                <StackPanel>
+                    <TextBlock Text="Modbus 学习监控台"
+                               FontSize="28"
+                               FontWeight="SemiBold"
+                               Foreground="#FFF7E8" />
+                    <TextBlock Margin="0,6,0,0"
+                               Text="当前界面会优先尝试真实调度器；若真实链路尚未满足条件，则自动回退到模拟链路，便于继续观察 ViewModel 与映射流程。"
+                               FontSize="13"
+                               Foreground="#D8E4F0"
+                               TextWrapping="Wrap" />
+                </StackPanel>
 
-        <StatusBar DockPanel.Dock="Bottom" Background="Yellow">
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button x:Name="AutoToggleButton"
+                            Width="140"
+                            Margin="0,0,12,0"
+                            Padding="12,8"
+                            Background="#F2A65A"
+                            BorderBrush="#F2A65A"
+                            Click="AutoToggleButton_Click"
+                            Content="启动自动刷新" />
+                    <Button Width="120"
+                            Padding="12,8"
+                            Background="#F7F4ED"
+                            BorderBrush="#E0D5C4"
+                            Click="RefreshButton_Click"
+                            Content="手动刷新一次" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <StatusBar DockPanel.Dock="Bottom"
+                   Background="#E8DFD1"
+                   Foreground="#2B2B2B">
             <StatusBarItem>
-                <TextBlock Text="等待中" Foreground="Black" FontSize="11"/>
+                <TextBlock Text="{Binding SummaryText}" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem>
+                <TextBlock Text="{Binding LastUpdatedText}" />
             </StatusBarItem>
         </StatusBar>
 
-        <Grid>
+        <Grid Margin="18">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="125" MinWidth="125" />
-                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="18" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Background="#EEEEEE" BorderBrush="#CCC" BorderThickness="0,0,1,0">
-                <CheckBox Content="CheckBox" Margin="0,0,0,0"/>
+            <StackPanel Grid.Column="0">
+                <Border Margin="0,0,0,14"
+                        Padding="18"
+                        Background="#FFFDF8"
+                        BorderBrush="#D9C7A7"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <StackPanel>
+                        <TextBlock Text="当前设备"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="#16324F" />
+                        <TextBlock Margin="0,14,0,0"
+                                   Text="{Binding DeviceName}"
+                                   FontSize="26"
+                                   FontWeight="Bold"
+                                   Foreground="#B45F06" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding PortName, StringFormat=串口：{0}}"
+                                   FontSize="14"
+                                   Foreground="#4C5A67" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Text="{Binding DataSourceText}"
+                                   FontSize="13"
+                                   Foreground="#4C5A67"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,0,0,14"
+                        Padding="18"
+                        Background="#FFFDF8"
+                        BorderBrush="#D9C7A7"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="调度器状态" FontWeight="SemiBold" Foreground="#16324F" />
+                        <TextBlock Grid.Column="1"
+                                   Margin="20,0,0,0"
+                                   Text="{Binding SchedulerStateText}"
+                                   Foreground="#2B2B2B" />
+
+                        <TextBlock Grid.Row="1"
+                                   Margin="0,10,0,0"
+                                   Text="设备状态"
+                                   FontWeight="SemiBold"
+                                   Foreground="#16324F" />
+                        <TextBlock Grid.Row="1"
+                                   Grid.Column="1"
+                                   Margin="20,10,0,0"
+                                   Text="{Binding DeviceStateText}"
+                                   Foreground="#2B2B2B" />
+
+                        <TextBlock Grid.Row="2"
+                                   Margin="0,10,0,0"
+                                   Text="最近更新"
+                                   FontWeight="SemiBold"
+                                   Foreground="#16324F" />
+                        <TextBlock Grid.Row="2"
+                                   Grid.Column="1"
+                                   Margin="20,10,0,0"
+                                   Text="{Binding LastUpdatedText}"
+                                   Foreground="#2B2B2B" />
+
+                        <TextBlock Grid.Row="3"
+                                   Margin="0,10,0,0"
+                                   Text="摘要"
+                                   FontWeight="SemiBold"
+                                   Foreground="#16324F" />
+                        <TextBlock Grid.Row="3"
+                                   Grid.Column="1"
+                                   Margin="20,10,0,0"
+                                   Text="{Binding SummaryText}"
+                                   TextWrapping="Wrap"
+                                   Foreground="#2B2B2B" />
+                    </Grid>
+                </Border>
+
+                <Border Padding="18"
+                        Background="#FFF7F0"
+                        BorderBrush="#E0B98B"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <StackPanel>
+                        <TextBlock Text="告警 / 学习提示"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="#8A3B12" />
+                        <TextBlock Margin="0,12,0,0"
+                                   Text="{Binding WarningsText}"
+                                   TextWrapping="Wrap"
+                                   Foreground="#5E2A12" />
+                        <TextBlock Margin="0,12,0,0"
+                                   Text="{Binding AnalysisHintText}"
+                                   TextWrapping="Wrap"
+                                   Foreground="#8A3B12" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <Border Grid.Column="2"
+                    Padding="18"
+                    Background="#FFFDF8"
+                    BorderBrush="#D9C7A7"
+                    BorderThickness="1"
+                    CornerRadius="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Margin="0,0,0,14">
+                        <TextBlock Text="点位实时值"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Foreground="#16324F" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="这里展示的是已经过映射后的属性值，便于观察“地址 -> 属性 -> 界面文本”的完整链路。"
+                                   Foreground="#5D6B78"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding Points}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              RowBackground="#FFFDF8"
+                              AlternatingRowBackground="#F7F2E8"
+                              BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="点位名称"
+                                                Binding="{Binding Name}"
+                                                Width="2*" />
+                            <DataGridTextColumn Header="当前值"
+                                                Binding="{Binding ValueText}"
+                                                Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
             </Border>
-
-            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="Transparent" />
-
-            <Grid Grid.Column="2" Background="White">
-                <TextBlock Text="这里是实时监控数据区" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="#AAA" />
-            </Grid>
         </Grid>
     </DockPanel>
 </Window>

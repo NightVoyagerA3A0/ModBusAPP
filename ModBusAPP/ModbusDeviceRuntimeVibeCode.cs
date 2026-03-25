@@ -124,7 +124,7 @@ namespace Components
                     continue;
                 }
 
-                var mapped = point.Attribute.Mapping(coilRaw);
+                var mapped = ApplyCoilMapping(point.Attribute, coilRaw);
                 point.AssignValue(mapped);
                 appliedValues[point.Property.Name] = mapped;
             }
@@ -253,7 +253,7 @@ namespace Components
             }
 
             double rawValue;
-            if (point.Attribute.CustomMapping || point.Attribute.JointTypes == jointTypes.Custom)
+            if (point.Attribute.CustomMapping || point.Attribute.RegisterValueType == RegisterValueType.Custom)
             {
                 if (!point.TryResolveCustomValue(words, out rawValue))
                 {
@@ -263,12 +263,70 @@ namespace Components
             }
             else
             {
-                rawValue = ModbusRawValueDecoder.Decode(words, point.Attribute.JointTypes);
+                rawValue = ModbusRawValueDecoder.Decode(words, point.Attribute.RegisterValueType);
             }
 
-            var mapped = point.Attribute.Mapping((float)rawValue);
+            var mapped = ApplyRegisterMapping(point.Attribute, rawValue);
             resolved = ConvertToPropertyType(mapped, point.Property.PropertyType);
             return true;
+        }
+
+        /// <summary>
+        /// 根据线圈特性的声明规则，把原始布尔值转换成最终回填值。
+        /// </summary>
+        /// <param name="attribute">
+        /// 输入参数模式：线圈点位的声明特性。
+        /// 该参数提供反转规则，是运行时执行布尔映射时唯一需要的声明来源。
+        /// </param>
+        /// <param name="rawValue">
+        /// 输入参数模式：快照中的原始线圈值。
+        /// 该值尚未应用 Reverse 规则。
+        /// </param>
+        /// <returns>
+        /// 返回模式：可直接回填到目标属性的布尔结果。
+        /// </returns>
+        /// <remarks>
+        /// 行为模式：映射型。
+        /// 该方法只负责应用声明层的反转规则，不访问外部资源，也不修改运行时状态。
+        /// </remarks>
+        private static bool ApplyCoilMapping(ModbusDeviceCoilAttribute attribute, bool rawValue)
+        {
+            return attribute.Reverse ? !rawValue : rawValue;
+        }
+
+        /// <summary>
+        /// 根据寄存器特性的声明参数，把基础数值转换成业务值。
+        /// </summary>
+        /// <param name="attribute">
+        /// 输入参数模式：寄存器点位的声明特性。
+        /// 该参数提供偏移量、缩放系数和 Custom 标记，用于决定运行时如何执行映射。
+        /// </param>
+        /// <param name="rawValue">
+        /// 输入参数模式：已经完成寄存器拼接后的基础数值。
+        /// 该值仍属于底层解释结果，尚未应用业务公式。
+        /// </param>
+        /// <returns>
+        /// 返回模式：业务映射后的浮点结果。
+        /// 当返回成功时，结果可继续被转换为属性所需的 CLR 类型。
+        /// </returns>
+        /// <remarks>
+        /// 行为模式：映射型。
+        /// 如果声明层要求使用 Custom 映射，则不应再进入本方法，而应由设备模型自定义处理。
+        /// </remarks>
+        private static float ApplyRegisterMapping(ModbusDevicePointAttribute attribute, double rawValue)
+        {
+            if (attribute.CustomMapping)
+            {
+                throw new InvalidOperationException($"{nameof(ModbusDevicePointAttribute)} 已声明 CustomMapping，应由设备模型提供自定义映射结果。");
+            }
+
+            var value = rawValue + attribute.Offset;
+            var mapped = (attribute.A1 * value)
+                + (attribute.A2 * Math.Pow(value, 2))
+                + (attribute.A3 * Math.Pow(value, 3))
+                + attribute.B;
+
+            return (float)mapped;
         }
 
         /// <summary>

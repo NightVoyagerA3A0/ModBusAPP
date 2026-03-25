@@ -113,17 +113,17 @@ namespace Components
             IPointAtrributesCache cache;
             switch (meta.PointType)
             {
-                case pointTypes.Register:
+                case PointType.Register:
                     {
                         RegisterCache _cache = new RegisterCache();
                         cache = _cache;
                         break;
                     }
-                case pointTypes.Coil:
+                case PointType.Coil:
                     {
 
                         CoilCache _cache = new CoilCache();
-                        if (_cache.PointType != pointTypes.Coil)
+                        if (_cache.PointType != PointType.Coil)
                         { Console.WriteLine($"{nameof(cache)}缓存点位类型错误的初始化为Register。应当为Coil"); }
                         cache = _cache;
                         break;
@@ -131,7 +131,7 @@ namespace Components
                     }
                     break;
 
-                case pointTypes.Others:
+                case PointType.Others:
                     //这意味着数据映射器无法映射，也不存在合理的元信息猜测。这里预定一个通用缓存类。只写标准信息。
                     //是否考虑改为TryBuild方法？待定。
                     throw new NotImplementedException();
@@ -195,12 +195,12 @@ namespace Components
     /// </summary>
     static class MappingHelper
     {
-        static public byte[] Joint(byte[] raw, int addr, jointTypes types)
+        static public byte[] Joint(byte[] raw, int addr, RegisterValueType types)
         {
             throw new NotImplementedException();
             //以下皆在商讨中，在MVP环节中只考虑单字节映射，而不joint。
             int rawaddr = addr * 2;
-            int length = (types == jointTypes.Int16) ? 2 : 4;
+            int length = (types == RegisterValueType.Int16) ? 2 : 4;
             if (raw.Length < rawaddr + length)
             {
                 throw new ArgumentException();
@@ -208,13 +208,13 @@ namespace Components
             byte[] result = new byte[length];
             switch (types)
             {
-                case jointTypes.Int16:
+                case RegisterValueType.Int16:
                     for (int i = 0; i < 2; i++) { result[i] = raw[rawaddr + i]; }
                     break;
-                case jointTypes.BigEndian32:
+                case RegisterValueType.BigEndian32:
                     for (int i = 0; i < 4; i++) { result[i] = raw[rawaddr + i]; }
                     break;
-                case jointTypes.LittleEndian32:
+                case RegisterValueType.LittleEndian32:
                     result[3] = raw[rawaddr + 0];
                     result[2] = raw[rawaddr + 1];
                     result[1] = raw[rawaddr + 2];
@@ -236,12 +236,12 @@ namespace Components
         public float A3 { get; set; }
         public float B { get; set; }
         public float Offset { get; set; }
-        public jointTypes JointTypes { get; set; }
+        public RegisterValueType RegisterValueType { get; set; }
         public bool CustomMapping { get; set; }
         public short Length { get; set; }
         public int Index { get; set; }
         public int Address { get; set; }
-        public pointTypes PointType { get { return pointTypes.Register; } }
+        public PointType PointType { get { return PointType.Register; } }
 
     }
 
@@ -250,6 +250,6 @@ namespace Components
         public bool Reverse { get; set; }
         public int Index { get; set; }
         public int Address { get; set; }
-        public pointTypes PointType { get { return pointTypes.Coil; } }
+        public PointType PointType { get { return PointType.Coil; } }
     }
 }
